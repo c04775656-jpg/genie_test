@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
@@ -140,3 +141,7 @@ def chat(req: ChatRequest, authorization: str = Header(None)):
 @app.get("/")
 def root():
     return {"status": "ok", "message": "Databricks Genie 聊天後端正在運行"}
+
+@app.get("/app")
+def serve_frontend():
+    return FileResponse("index.html")
