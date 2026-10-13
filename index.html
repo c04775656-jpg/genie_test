@@ -183,7 +183,11 @@ async function login() {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      errEl.textContent = data.detail || "登入失敗";
+      let errMsg = data.detail;
+      if (typeof errMsg !== "string") {
+        errMsg = JSON.stringify(errMsg);
+      }
+      addMessage("bot", "錯誤：" + (errMsg || res.status));
       return;
     }
     const data = await res.json();
