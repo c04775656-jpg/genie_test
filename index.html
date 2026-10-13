@@ -247,7 +247,11 @@ async function send() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      addMessage("bot", "錯誤：" + (data.detail || res.status));
+      let errMsg = data.detail;
+      if (typeof errMsg !== "string") {
+        errMsg = JSON.stringify(errMsg, null, 2);
+      }
+      addMessage("bot", "錯誤（" + res.status + "）：" + (errMsg || "未知錯誤"));
       return;
     }
 
