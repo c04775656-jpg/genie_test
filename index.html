@@ -240,7 +240,11 @@ async function send() {
         "Content-Type": "application/json",
         "Authorization": "Bearer " + token
       },
-      body: JSON.stringify({ message: text, conversation_id: conversationId })
+      body: JSON.stringify(
+        conversationId
+          ? { message: text, conversation_id: conversationId }
+          : { message: text }
+      )
     });
 
     loading.remove();
