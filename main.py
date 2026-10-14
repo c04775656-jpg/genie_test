@@ -42,7 +42,8 @@ class LoginRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    conversation_id: str = None
+    conversation_id: Optional[str] = None
+app = FastAPI()
 
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
@@ -144,8 +145,3 @@ def root():
 @app.get("/app")
 def serve_frontend():
     return FileResponse("index.html")
-
-class ChatRequest(BaseModel):
-    message: str
-    conversation_id: Optional[str] = None
-app = FastAPI()
