@@ -9,8 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
 from fastapi.responses import FileResponse
-
-app = FastAPI()
+from typing import Optional
 
 app.add_middleware(
     CORSMiddleware,
@@ -145,3 +144,8 @@ def root():
 @app.get("/app")
 def serve_frontend():
     return FileResponse("index.html")
+
+class ChatRequest(BaseModel):
+    message: str
+    conversation_id: Optional[str] = None
+app = FastAPI()
