@@ -11,6 +11,8 @@ import requests
 from fastapi.responses import FileResponse
 from typing import Optional
 
+app = FastAPI()  
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -43,7 +45,6 @@ class LoginRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
-app = FastAPI()
 
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
