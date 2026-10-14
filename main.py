@@ -4,14 +4,14 @@ import hashlib
 import jwt
 import datetime
 import time
+from typing import Optional
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import requests
-from fastapi.responses import FileResponse
-from typing import Optional
 
-app = FastAPI()  
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,6 +28,9 @@ GENIE_SPACE_ID = os.environ.get("GENIE_SPACE_ID")
 
 DB_PATH = "users.db"
 
+# 快取 Genie Agent 名稱，避免每次請求都去打 API
+GENIE_AGENT_NAME = None
+
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -37,6 +40,30 @@ def init_db():
     conn.close()
 
 init_db()
+
+def fetch_genie_agent_name():
+    """向 Databricks 取得 Genie Space 的 title"""
+    global GENIE_AGENT_NAME
+    if GENIE_AGENT_NAME:
+        return GENIE_AGENT_NAME
+
+    headers = {
+        "Authorization": f"Bearer {DATABRICKS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    url = f"{DATABRICKS_HOST}/api/2.0/genie/spaces/{GENIE_SPACE_ID}"
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            GENIE_AGENT_NAME = data.get("title", "Genie")
+        else:
+            GENIE_AGENT_NAME = "Genie"
+    except Exception:
+        GENIE_AGENT_NAME = "Genie"
+
+    return GENIE_AGENT_NAME
 
 class LoginRequest(BaseModel):
     username: str
@@ -89,6 +116,12 @@ def login(req: LoginRequest):
     }, SECRET_KEY, algorithm="HS256")
     return {"token": token}
 
+@app.get("/config")
+def get_config():
+    """回傳前端需要的設定資訊，包含 Genie Agent 的名稱"""
+    agent_name = fetch_genie_agent_name()
+    return {"agent_name": agent_name}
+
 @app.post("/chat")
 def chat(req: ChatRequest, authorization: str = Header(None)):
     username = verify_token(authorization)
@@ -99,11 +132,9 @@ def chat(req: ChatRequest, authorization: str = Header(None)):
     }
 
     if req.conversation_id:
-        # 在現有會話中繼續對話
         url = f"{DATABRICKS_HOST}/api/2.0/genie/spaces/{GENIE_SPACE_ID}/conversations/{req.conversation_id}/messages"
         payload = {"content": req.message}
     else:
-        # 開始新的會話
         url = f"{DATABRICKS_HOST}/api/2.0/genie/spaces/{GENIE_SPACE_ID}/start-conversation"
         payload = {"content": req.message}
 
@@ -115,9 +146,8 @@ def chat(req: ChatRequest, authorization: str = Header(None)):
     conv_id = data["conversation_id"]
     msg_id = data["message_id"]
 
-    # 輪詢直到訊息處理完成
     poll_url = f"{DATABRICKS_HOST}/api/2.0/genie/spaces/{GENIE_SPACE_ID}/conversations/{conv_id}/messages/{msg_id}"
-    for _ in range(60):  # 最多輪詢 60 次
+    for _ in range(60):
         poll_resp = requests.get(poll_url, headers=headers)
         if poll_resp.status_code != 200:
             break
@@ -135,14 +165,14 @@ def chat(req: ChatRequest, authorization: str = Header(None)):
         elif status in ("FAILED", "CANCELLED"):
             raise HTTPException(status_code=500, detail=f"Genie 處理失敗：{status}")
 
-        time.sleep(2)  # 每 2 秒輪詢一次
+        time.sleep(2)
 
     raise HTTPException(status_code=504, detail="Genie 處理逾時")
-
-@app.get("/")
-def root():
-    return {"status": "ok", "message": "Databricks Genie 聊天後端正在運行"}
 
 @app.get("/app")
 def serve_frontend():
     return FileResponse("index.html")
+
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "Databricks Genie 聊天後端正在運行"}
